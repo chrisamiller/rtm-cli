@@ -1,7 +1,10 @@
 #! /usr/bin/perl -w
 
-# rtm: Command-line interface to www.rememberthemilk.com
-# Copyright (C) 2007  Yves Rutschle
+# Command-line interface to www.rememberthemilk.com
+# Author: Chris Miller (chrisamiller@gmail.com)
+#
+#
+# Based on rtm by Yves Rutschle (http://www.rutschle.net/rtm/)
 # 
 # This program is free software; you can redistribute it
 # and/or modify it under the terms of the GNU General Public
@@ -24,14 +27,15 @@
 
 =head1 SYNOPSIS
 
- rtm [--filter <filter>]
-     [--verbose|-v]
-      --show [list|task]
-      --list <listnum>
-      --add <taskname>
-      --complete <tasklist>
-      --delete <tasklist>
-      --uncomplete <tasklist>
+ rtm [--filter     | -f  <filter>]
+     [--verbose    | -v ]
+      --show       | -s  [list|task]
+      --list       | -l  <listnum>
+      --add        | -a  <taskname>
+      --dueDate    | -d  <date>
+      --complete   | -c  <tasklist>
+      --remove     | -r  <tasklist>
+      --uncomplete | -u <tasklist>
       --undo [<action>]
 
  rtm --help
@@ -43,7 +47,7 @@ list service found at C<http://www.rememberthemilk.com>
 (called I<rtm> in the rest of this page).
 
 You need to allow B<rtm> to access your I<rtm> account.
-First you should call B<rtm --authorise>, which will give
+First you should call B<rtm --authorize>, which will give
 you an authentication URL on C<rememberthemilk.com>. You
 should then direct your browser to that URL, and allow
 access. Next time you call B<rtm>, it will finish the
@@ -80,10 +84,10 @@ my ($param_getauth, $param_complete, $param_list,
     $param_show, $param_add, $param_undo,
     $help, $verbose);
 GetOptions(
-    'authorise'         => \$param_getauth,
+    'authorize'         => \$param_getauth,
 
     'add=s'             => \$param_add,
-
+    'date=s'            => \$param_date
     'complete=s'        => \$param_complete,
     'uncomplete=s'      => \$param_uncomplete,
     'delete=s'          => \$param_delete,
@@ -99,6 +103,7 @@ GetOptions(
 
 die pod2usage(-verbose=>2) if defined $help;
 
+
 # if no action defined, make 'show list' the default
 $param_show = '' unless defined $param_add or defined
 $param_complete or defined $param_uncomplete or defined
@@ -106,6 +111,7 @@ $param_delete or defined $param_show or defined $param_undo;
 
 $param_filter ||= 'status:incomplete';
 $param_filter = "filter=$param_filter";
+
 
 # Returns a list of tasks depending on filter
 sub task_list {
@@ -168,12 +174,12 @@ sub expand_list {
 
 explain what is being done
 
-=item B<--authorise>
+=item B<--authorize>
 
-Prints an authorisation URL. This is the first thing you
+Prints an authorization URL. This is the first thing you
 should do before using this program. You should then go to
 the specified URL, log in using your username and password,
-and authorise this program to use your data.
+and authorize this program to use your data.
 
 =cut
 
@@ -425,9 +431,8 @@ even better.
 
 B<WebService::RTMAgent.pm>, which implements the B<rtm> API.
 
-http://www.rutschle.net/rtm
-
 =head1 AUTHOR
 
-Written by Yves Rutschle <rtm@rutschle.net>
+Chris Miller <chrisamiller@gmail.com>
+
 
