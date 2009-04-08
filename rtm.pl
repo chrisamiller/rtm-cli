@@ -121,11 +121,19 @@ sub task_list {
             foreach my $task (@{$taskseries->{taskseries}}) {
                 my $taskseries_id = $task->{id};
                 my $task_id = $task->{task}->[0]->{id};
+		my $dueDate = $task->{task}->[0]->{due};
+		if ($dueDate eq ""){
+		    $dueDate = "__"
+		}
+
                 push @out, {
                     list_id =>$list_id, 
                     taskseries_id => $taskseries_id, 
                     task_id => $task_id,
                     name => $task->{name},
+
+		    dueDate => $dueDate,
+
                     task => $task,  # Keep a reference to the whole data
                 };
             }
@@ -267,11 +275,30 @@ If no parameter is present, all the tasks are printed
 is).
 
 =cut
+
+#pads a column to a set number of characters
+sub padName {
+    my $name=shift;
+    my $len = 50;
+    if (length($name) < $len){
+      $name = sprintf("%-${len}s", $name);
+    }
+    elsif (length($name) > $len) {
+#	print "Z" . $name . "Z";
+	$name = substr($name,0,$len);
+#	print "Z" . $name . "Z";
+    }
+    return $name;
+}
+
+
+
 if (defined $param_show) {
     if ($param_show eq 'list') {
         my %lists = list_list;
         foreach my $i (sort {$a <=> $b} keys %lists) {
-            print "$i: $lists{$i}->{name}\n";
+	    print "$i: $lists{$i}->{name}\n";
+#            print "$i: $lists{$i}->{name}\t$lists{$i}->{dueDate}\tzzz\n";
         }
     } else {
         my %tasks = task_list($param_filter, $list_id ?
@@ -307,12 +334,21 @@ if (defined $param_show) {
                       "$note->{content}\n";
             }
         } else {
-            foreach my $i (sort {$a <=> $b} keys %tasks) {
-                print "$i: $tasks{$i}->{name}\n";
+#            foreach my $i (sort {$a <=> $b} keys %tasks) 
+            foreach my $i (sort {$tasks{$a}->{dueDate} cmp $tasks{$b}->{dueDate}} keys %tasks) {
+
+		my $dueDate = $tasks{$i}->{dueDate};
+		unless ($dueDate eq "__"){
+		    $dueDate = UnixDate($dueDate,"%b %e");
+		}
+
+                print "$i:\t" . padName($tasks{$i}->{name}) . "\t" . $dueDate . "\n";
             }
         }
     }
 }
+
+
 
 =item B<--undo> [I<action>]
 
