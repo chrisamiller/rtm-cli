@@ -66,6 +66,9 @@ use Data::Dumper;
 use strict;
 
 my $ua = new WebService::RTMAgent;
+
+
+
 $ua->verbose('');  # /netout|netin/
 
 # These are mine! Please request your own if you're going to build an
@@ -77,31 +80,32 @@ $ua->api_secret("40963b4c7dc48eae");
 $ua->no_proxy();
 $ua->env_proxy;
 
+
 my $res;
 
-my ($param_getauth, $param_complete, $param_list, 
-    $param_filter, $param_delete, $param_uncomplete,
-    $param_show, $param_add, $param_undo,
-    $help, $verbose);
-GetOptions(
-    'authorize'         => \$param_getauth,
+ my ($param_getauth, $param_complete, $param_list, 
+     $param_filter, $param_delete, $param_uncomplete,
+     $param_show, $param_add, $param_undo,
+     $help, $verbose);
 
-    'add=s'             => \$param_add,
-    'date=s'            => \$param_date
-    'complete=s'        => \$param_complete,
-    'uncomplete=s'      => \$param_uncomplete,
-    'delete=s'          => \$param_delete,
+# GetOptions(
+#     'authorize'         => \$param_getauth,
 
-    'undo:s'            => \$param_undo,
+#     'add=s'             => \$param_add,
+#     'complete=s'        => \$param_complete,
+#     'uncomplete=s'      => \$param_uncomplete,
+#     'delete=s'          => \$param_delete,
 
-    'list=i'            => \$param_list,
-    'filter=s'          => \$param_filter,
-    'verbose'           => \$verbose,
-    'show:s'            => \$param_show,
-    'help'              => \$help,
-) or die pod2usage();
+#     'undo:s'            => \$param_undo,
 
-die pod2usage(-verbose=>2) if defined $help;
+#     'list=i'            => \$param_list,
+#     'filter=s'          => \$param_filter,
+#     'verbose'           => \$verbose,
+#     'show:s'            => \$param_show,
+#     'help'              => \$help,
+# ) or die pod2usage();
+
+# die pod2usage(-verbose=>2) if defined $help;
 
 
 # if no action defined, make 'show list' the default
@@ -183,12 +187,17 @@ and authorize this program to use your data.
 
 =cut
 
-if (defined $param_getauth) {
-    print($ua->get_auth_url."\n");
-    exit 0;
-}
+
+ if (defined $param_getauth) {
+     print($ua->get_auth_url."\n");
+     exit 0;
+ }
+#auth check function call here
 
 $ua->init;
+
+
+
 
 =item B<--filter> I<filter>
 
@@ -219,13 +228,15 @@ Adds a task called I<taskname>. If not list is specified
 with B<--list>, the task is added to the Inbox.
 
 =cut
-if (defined $param_add) {
-    my $res = $ua->tasks_add(
-        "name=$param_add", "parse=1",
-        $list_id ? "list_id=$list_id" : "" );
-    die $ua->error unless defined $res;
-    print "added `$param_add'\n" if $verbose;
-}
+
+
+# if (defined $param_add) {
+#     my $res = $ua->tasks_add(
+#         "name=$param_add", "parse=1",
+#         $list_id ? "list_id=$list_id" : "" );
+#     die $ua->error unless defined $res;
+#     print "added `$param_add'\n" if $verbose;
+# }
 
 =item B<--delete> I<tasklist>
 
@@ -248,28 +259,29 @@ I<in that previous list, mark tasks 3, 6 and 9 to 12 as completed>
 
 =cut
 
-sub act_on_tasklist {
-    my ($tasks, $method, $message, $list) = @_;
-    foreach my $tnum (expand_list $list) {
-        warn "$0: task $tnum does not exist\n" if not exists $tasks->{$tnum};
-        my %task = %{$tasks->{$tnum}};
-        my ($lid, $tsid, $id, $name) = 
-            @task{'list_id', 'taskseries_id', 'task_id', 'name'};
 
-        no strict 'refs';
-        my $res = $ua->$method("list_id=$lid","taskseries_id=$tsid","task_id=$id");
-        warn $ua->error if not defined $res;
-        print "$message `$name'\n" if $verbose;
-    }
-}
+# sub act_on_tasklist {
+#     my ($tasks, $method, $message, $list) = @_;
+#     foreach my $tnum (expand_list $list) {
+#         warn "$0: task $tnum does not exist\n" if not exists $tasks->{$tnum};
+#         my %task = %{$tasks->{$tnum}};
+#         my ($lid, $tsid, $id, $name) = 
+#             @task{'list_id', 'taskseries_id', 'task_id', 'name'};
 
-if (defined $param_delete or defined $param_complete or
-    defined $param_uncomplete) {
-    my %tasks = task_list($param_filter, $list_id ?  "list_id=$list_id" : "");
-    act_on_tasklist \%tasks, 'tasks_delete', 'deleted', $param_delete if defined $param_delete;
-    act_on_tasklist \%tasks, 'tasks_complete', 'completed', $param_complete if defined $param_complete;
-    act_on_tasklist \%tasks, 'tasks_uncomplete', 'uncompleted', $param_uncomplete if defined $param_uncomplete;
-}
+#         no strict 'refs';
+#         my $res = $ua->$method("list_id=$lid","taskseries_id=$tsid","task_id=$id");
+#         warn $ua->error if not defined $res;
+#         print "$message `$name'\n" if $verbose;
+#     }
+# }
+
+# if (defined $param_delete or defined $param_complete or
+#     defined $param_uncomplete) {
+#     my %tasks = task_list($param_filter, $list_id ?  "list_id=$list_id" : "");
+#     act_on_tasklist \%tasks, 'tasks_delete', 'deleted', $param_delete if defined $param_delete;
+#     act_on_tasklist \%tasks, 'tasks_complete', 'completed', $param_complete if defined $param_complete;
+#     act_on_tasklist \%tasks, 'tasks_uncomplete', 'uncompleted', $param_uncomplete if defined $param_uncomplete;
+# }
 
 =item B<--show> I<list|task>
 
@@ -341,6 +353,7 @@ if (defined $param_show) {
             }
         } else {
 #            foreach my $i (sort {$a <=> $b} keys %tasks) 
+	    my $prevDate = "";
             foreach my $i (sort {$tasks{$a}->{dueDate} cmp $tasks{$b}->{dueDate}} keys %tasks) {
 
 		my $dueDate = $tasks{$i}->{dueDate};
@@ -348,8 +361,15 @@ if (defined $param_show) {
 		    $dueDate = UnixDate($dueDate,"%b %e");
 		}
 
+		#spacing between days
+		unless ($prevDate eq $dueDate){
+		    print "----------------------\n" ;
+		}
+
                 print "$i:\t" . padName($tasks{$i}->{name}) . "\t" . $dueDate . "\n";
+		$prevDate = $dueDate
             }
+	    print "\n" #some trailing space for CLI
         }
     }
 }
@@ -364,24 +384,26 @@ the action to be undone, as found in that list. (just try
 it, it's quite intuitive really).
 
 =cut
-if (defined $param_undo) {
-    my $list = $ua->get_undoable;
 
-    if ($param_undo) {
-        my $t = $list->[$param_undo];
-        die "action $param_undo not found\n" unless $t->{id};
-        $ua->transactions_undo("transaction_id=$t->{id}") or die $ua->error;
-        $ua->clear_undo($param_undo);
-    } else {
-        my $cnt = 0;
-        map { print($cnt++, ": ", $_->{op}, "(",
-                  (join ", ", 
-                      grep { /=/  }  @{$_->{params}}) 
-                  .")\n"); 
-          } @$list;
-    }
 
-}
+# if (defined $param_undo) {
+#     my $list = $ua->get_undoable;
+
+#     if ($param_undo) {
+#         my $t = $list->[$param_undo];
+#         die "action $param_undo not found\n" unless $t->{id};
+#         $ua->transactions_undo("transaction_id=$t->{id}") or die $ua->error;
+#         $ua->clear_undo($param_undo);
+#     } else {
+#         my $cnt = 0;
+#         map { print($cnt++, ": ", $_->{op}, "(",
+#                   (join ", ", 
+#                       grep { /=/  }  @{$_->{params}}) 
+#                   .")\n"); 
+#           } @$list;
+#     }
+
+# }
 
 
 =back
