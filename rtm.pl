@@ -88,6 +88,28 @@ my $res;
      $param_show, $param_add, $param_undo,
      $help, $verbose);
 
+$ua->init;
+
+#if no options given, print list
+unless (@ARGV){
+    showList();
+    exit;
+}
+my $arg0 = shift(@ARGV);
+
+if ($arg0 eq "authorize"){
+    authorize()
+}
+elsif (($arg0 eq "add") || $arg0 eq "a"){
+    my $taskName = "";
+    foreach my $num (0 .. $#ARGV) {
+	$taskName = $taskName . " " . $ARGV[$num];
+    }
+    addTask($taskName);
+}
+exit;
+
+
 # GetOptions(
 #     'authorize'         => \$param_getauth,
 
@@ -108,55 +130,56 @@ my $res;
 # die pod2usage(-verbose=>2) if defined $help;
 
 
-# if no action defined, make 'show list' the default
-$param_show = '' unless defined $param_add or defined
-$param_complete or defined $param_uncomplete or defined
-$param_delete or defined $param_show or defined $param_undo;
-
-$param_filter ||= 'status:incomplete';
-$param_filter = "filter=$param_filter";
-
 
 # Returns a list of tasks depending on filter
-sub task_list {
+sub getTaskList {
     my (@params) = @_;
     $res = $ua->tasks_getList(@params);
     die $ua->error unless defined $res;
 
     my @out;
+    # for each list
     foreach my $list (@{$res->{tasks}}) {
+	# for each task series
         foreach my $taskseries (@{$list->{list}}) {
             my $list_id = $taskseries->{id};
             next unless exists $taskseries->{taskseries};
+	    # for each task
             foreach my $task (@{$taskseries->{taskseries}}) {
                 my $taskseries_id = $task->{id};
                 my $task_id = $task->{task}->[0]->{id};
 		my $dueDate = $task->{task}->[0]->{due};
 		if ($dueDate eq ""){
-		    $dueDate = "__"
+		    $dueDate = 999999999999999;
 		}
+		else{
+		    $dueDate = UnixDate($dueDate,"%s");
+		}  
 
                 push @out, {
                     list_id =>$list_id, 
                     taskseries_id => $taskseries_id, 
                     task_id => $task_id,
                     name => $task->{name},
-
 		    dueDate => $dueDate,
-
                     task => $task,  # Keep a reference to the whole data
                 };
             }
         }
     } 
     my $cnt = 0;
-    return map { $cnt++, $_ } sort { $a->{task_id} <=> $b->{task_id} } @out;
+
+    return map { $cnt++, $_ } sort { $a->{dueDate} <=> $b->{dueDate} } @out;
 }
 
-# returns a hash of
-#    number => list hash
-# with number garanteed to be consistent (sorted by list_id)
-sub list_list {
+#sort {$tasks{$a}->{dueDate} cmp $tasks{$b}->{dueDate}} keys %tasks) {
+
+#
+# Retrieve the list of possible lists
+#
+# returns a hash of   number => list hash
+# with number guaranteed to be consistent (sorted by list_id)
+sub list_lists {
     my $res = $ua->lists_getList;
     die $ua->error if not defined $res;
 
@@ -188,13 +211,10 @@ and authorize this program to use your data.
 =cut
 
 
- if (defined $param_getauth) {
+sub authorize{
      print($ua->get_auth_url."\n");
      exit 0;
- }
-#auth check function call here
-
-$ua->init;
+}
 
 
 
@@ -213,14 +233,16 @@ the number returned by C<rtm --show list>.
 
 =cut
 
-my $list_id;
-if (defined $param_list) {
-    my %lists = list_list;
-    die "list $param_list does not exist\n" if not exists $lists{$param_list};
+#my $list_id;
+# if (defined $param_list) {
+#     my %lists = list_lists;
+#     die "list $param_list does not exist\n" if not exists $lists{$param_list};
 
-    $list_id = $lists{$param_list}->{id};
-    warn "working on list $list_id `$lists{$param_list}->{name}'\n" if $verbose;
-}
+#     $list_id = $lists{$param_list}->{id};
+#     warn "working on list $list_id `$lists{$param_list}->{name}'\n" if $verbose;
+# }
+
+
 
 =item B<--add> I<taskname>
 
@@ -229,14 +251,13 @@ with B<--list>, the task is added to the Inbox.
 
 =cut
 
-
-# if (defined $param_add) {
-#     my $res = $ua->tasks_add(
-#         "name=$param_add", "parse=1",
-#         $list_id ? "list_id=$list_id" : "" );
-#     die $ua->error unless defined $res;
-#     print "added `$param_add'\n" if $verbose;
-# }
+sub addTask{
+    my $name=shift(@_);
+    print "$name\n";
+    my $res = $ua->tasks_add("name=$name","parse=1","");
+    die $ua->error unless defined $res;
+    print "Added new task: \"$name\"\n";
+}
 
 =item B<--delete> I<tasklist>
 
@@ -259,8 +280,7 @@ I<in that previous list, mark tasks 3, 6 and 9 to 12 as completed>
 
 =cut
 
-
-# sub act_on_tasklist {
+#sub act_on_tasklist {
 #     my ($tasks, $method, $message, $list) = @_;
 #     foreach my $tnum (expand_list $list) {
 #         warn "$0: task $tnum does not exist\n" if not exists $tasks->{$tnum};
@@ -294,7 +314,9 @@ is).
 
 =cut
 
-#pads a column to a set number of characters
+
+# pads (or truncates) a string to a set number of characters
+# for nice display
 sub padName {
     my $name=shift;
     my $len = 50;
@@ -302,78 +324,43 @@ sub padName {
       $name = sprintf("%-${len}s", $name);
     }
     elsif (length($name) > $len) {
-#	print "Z" . $name . "Z";
 	$name = substr($name,0,$len);
-#	print "Z" . $name . "Z";
     }
     return $name;
 }
 
 
+# retrieves and displays the task list
+# TODO: renumber events in date order
+# TODO: add filter as option
+sub showList{
+    
+    #get the tasks (all incomplete)
+    my %tasks = getTaskList("filter=status:incomplete","");
 
-if (defined $param_show) {
-    if ($param_show eq 'list') {
-        my %lists = list_list;
-        foreach my $i (sort {$a <=> $b} keys %lists) {
-	    print "$i: $lists{$i}->{name}\n";
-#            print "$i: $lists{$i}->{name}\t$lists{$i}->{dueDate}\tzzz\n";
-        }
-    } else {
-        my %tasks = task_list($param_filter, $list_id ?
-                "list_id=$list_id" : "" );
-        if ($param_show =~ /(\d+)/) {
-            # There is a number in the parameter -> display
-            # that task
-            die "task $1 does not exist\n" unless exists $tasks{$1};
-            my $task = $tasks{$1};
-            my $tstruct = $task->{task}->{task}->[0];
-            print "Name: $task->{name}\n";
-            if ($tstruct->{due}) {
-                my $date = ParseDate($tstruct->{due});
-                print "Due : ".UnixDate($date,"%u")."\n";
-            }
-            print "Est : $tstruct->{estimate}\n" if $tstruct->{estimate};
-            $tstruct = $task->{task};
-            print "URL : $tstruct->{url}\n" if $tstruct->{url};
-            if ($tstruct->{rrule}) {
-                my $rec = $tstruct->{rrule}->[0];
-                my $content = $rec->{content};
-                my ($freq, $interval) = $content =~ /FREQ=(\w+);INTERVAL=(\w+)/;
-                print "Rec : \L$freq, every $interval\n";
-            }
-            print "tags: ".(join ", ", @{$tstruct->{tags}->[0]->{tag}})."\n" 
-                if $tstruct->{tags}->[0]->{tag};
-            print "location: $tstruct->{location}\n" if $tstruct->{location};
-            foreach my $note (@{$task->{task}->{notes}->[0]->{note}}) {
-                print '#'x79;
-                print "Note created $note->{created}, ".
-                      "last modified $note->{modified}\n".
-                print "--- $note->{title}\n".
-                      "$note->{content}\n";
-            }
-        } else {
-#            foreach my $i (sort {$a <=> $b} keys %tasks) 
-	    my $prevDate = "";
-            foreach my $i (sort {$tasks{$a}->{dueDate} cmp $tasks{$b}->{dueDate}} keys %tasks) {
-
-		my $dueDate = $tasks{$i}->{dueDate};
-		unless ($dueDate eq "__"){
-		    $dueDate = UnixDate($dueDate,"%b %e");
-		}
-
-		#spacing between days
-		unless ($prevDate eq $dueDate){
-		    print "----------------------\n" ;
-		}
-
-                print "$i:\t" . padName($tasks{$i}->{name}) . "\t" . $dueDate . "\n";
-		$prevDate = $dueDate
-            }
-	    print "\n" #some trailing space for CLI
-        }
+    my $prevDate = 0;
+    foreach my $i (sort {$tasks{$a}->{dueDate} cmp $tasks{$b}->{dueDate}} keys %tasks) {
+	
+	my $dueDate = $tasks{$i}->{dueDate};
+	#convert blank dueDates
+	if ($dueDate == 999999999999999){
+	    $dueDate = "___"
+	}
+	else{ #convert from unix dueDates to "Month Day"
+	    $dueDate = UnixDate(ParseDate("epoch $dueDate"),"%b%e");
+	}
+        
+	
+	#spacing between days
+	unless ("$prevDate" eq "$dueDate"){
+	    print "----------------------\n" ;
+	}
+	
+	print "$i:\t" . padName($tasks{$i}->{name}) . "\t" . $dueDate . "\n";
+	$prevDate = $dueDate
     }
+    print "\n" #some trailing space for CLI
 }
-
 
 
 =item B<--undo> [I<action>]
