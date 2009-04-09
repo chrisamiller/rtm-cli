@@ -280,6 +280,28 @@ I<in that previous list, mark tasks 3, 6 and 9 to 12 as completed>
 
 =cut
 
+# sub alterTask{
+#     my ($action,$actNum) = @_;
+#     foreach my $taskNum (expand_list $list) {
+# #         warn "$0: task $tnum does not exist\n" if not exists $tasks->{$tnum};
+# #         my %task = %{$tasks->{$tnum}};
+# #         my ($lid, $tsid, $id, $name) = 
+# #             @task{'list_id', 'taskseries_id', 'task_id', 'name'};
+
+# #         no strict 'refs';
+# #         my $res = $ua->$method("list_id=$lid","taskseries_id=$tsid","task_id=$id");
+# #         warn $ua->error if not defined $res;
+# #         print "$message `$name'\n" if $verbose;
+# #     }
+# # }   
+
+# }
+
+# if (defined $param_delete or defined $param_complete or defined $param_uncomplete) {
+#      my %tasks = task_list($param_filter, $list_id ?  "list_id=$list_id" : "");
+#      act_on_tasklist \%tasks, 'tasks_delete', 'deleted', $param_delete if defined $param_delete;
+
+
 #sub act_on_tasklist {
 #     my ($tasks, $method, $message, $list) = @_;
 #     foreach my $tnum (expand_list $list) {
