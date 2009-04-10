@@ -115,11 +115,57 @@ if (($arg0 eq "add") || $arg0 eq "a"){
     addTask($taskName);
 }
 
-#delete a task
-elsif (($arg0 eq "del") || $arg0 eq "d" || $arg0 eq "delete"){
+#remove a task
+elsif (($arg0 eq "rm") || $arg0 eq "r" || $arg0 eq "delete"){
     my $taskNum = shift(@ARGV);
     alterTask("tasks_delete", $taskNum, "deleted");
 }
+#complete a task
+elsif (($arg0 eq "c") || $arg0 eq "complete"){
+    my $taskNum = shift(@ARGV);
+    alterTask("tasks_complete", $taskNum, "completed");
+}
+#uncomplete a task
+elsif (($arg0 eq "uncomplete") || $arg0 eq "u"){
+    my $taskNum = shift(@ARGV);
+    alterTask("tasks_uncomplete", $taskNum, "uncompleted");
+}
+#postpone a task
+elsif (($arg0 eq "postpone") || $arg0 eq "p"){
+    my $taskNum = shift(@ARGV);
+    alterTask("tasks_postpone", $taskNum, "postpone");
+}
+#change a task's data
+elsif (($arg0 eq "date") || $arg0 eq "d"){
+    my $taskNum = shift(@ARGV);
+    my $date = shift(@ARGV);
+    foreach my $num (2 .. $#ARGV) {
+	$date = $date . " " . $ARGV[$num];
+    }
+    unless (defined($taskNum) && defined($date)){
+	die "invalid task number or date";
+    }
+    setDueDate($taskNum, $date);
+}
+#only show today's tasks
+elsif (($arg0 eq "uncomplete") || $arg0 eq "u"){
+    my $taskNum = shift(@ARGV);
+    alterTask("tasks_uncomplete", $taskNum, "uncompleted");
+}
+#list only today's tasks
+elsif ($arg0 eq "today"){
+    showList($arg0);
+}
+#show list with provided filter applied
+elsif ($arg0 eq "filter"){
+    my $filter = $ARGV[0];
+    foreach my $num (1 .. $#ARGV) {
+	$filter = $filter . " " . $ARGV[$num];
+    }
+    showList($filter);
+}
+
+
 
 exit;
 
@@ -295,10 +341,31 @@ I<in that previous list, mark tasks 3, 6 and 9 to 12 as completed>
 =cut
 
 sub alterTask{
-    my ($action,$taskNum,$message) = @_;
+    my ($action,$taskList,$message) = @_;
+    
+    #get the list
     my %tasks = getTaskList("filter=status:incomplete","");
-#    print Dumper(\%tasks)."\n";
-#    print $tasks{'2'}->{dueDate};
+ 
+    #for each task
+    foreach my $taskNum (expand_list $taskList) {
+	die "task $taskNum does not exist\n" if not exists $tasks{$taskNum};
+#	print "$taskNum\n"
+	my %task = %{$tasks{$taskNum}};
+	my ($lid, $tsid, $id, $name) = 
+	    @task{'list_id', 'taskseries_id', 'task_id', 'name'};
+	
+	no strict 'refs';
+	my $res = $ua->$action("list_id=$lid","taskseries_id=$tsid","task_id=$id");
+	warn $ua->error if not defined $res;
+	print "$message `$name'\n"
+    }
+}
+
+
+sub setDueDate{
+    my ($taskNum,$date) = @_;
+    my $action = "tasks_setDueDate";
+    my %tasks = getTaskList("filter=status:incomplete","");
 
     die "task $taskNum does not exist\n" if not exists $tasks{$taskNum};
  
@@ -307,12 +374,10 @@ sub alterTask{
 	@task{'list_id', 'taskseries_id', 'task_id', 'name'};
     
     no strict 'refs';
-    my $res = $ua->$action("list_id=$lid","taskseries_id=$tsid","task_id=$id");
+    my $res = $ua->$action("list_id=$lid","taskseries_id=$tsid","task_id=$id","due=$date","parse=1");
     warn $ua->error if not defined $res;
-    print "$message `$name'\n"
+    print "Date of \"$name\" changed to $date\n"
 }
-
-
 
 #sub act_on_tasklist {
 #     my ($tasks, $method, $message, $list) = @_;
@@ -368,9 +433,34 @@ sub padName {
 # TODO: renumber events in date order
 # TODO: add filter as option
 sub showList{
-    
+
+    #parse filters
+    my $filter=shift;
+    # if we have an input filter
+    if (defined $filter){	
+	#Just today's tasks
+	if ($filter eq "today"){
+	    $filter="filter=due:today";
+	    print "\nToday's Tasks:\n";
+	}
+	#user-defined filter
+	elsif ($filter =~ m/\w+\:\w+/){
+	    print "trying your filter: $filter\n";
+	    $filter="filter=". $filter
+	}
+	else{
+	    die "bad filter match"
+	}
+    }
+    else{ #no filter, just show incomplete tasks
+	$filter="filter=status:incomplete";
+    }	    
+
+
+
     #get the tasks (all incomplete)
-    my %tasks = getTaskList("filter=status:incomplete","");
+    my %tasks = getTaskList($filter,"");
+#    print Dumper(\%tasks)."\n";
 
     my $prevDate = 0;
     foreach my $i (sort {$tasks{$a}->{dueDate} cmp $tasks{$b}->{dueDate}} keys %tasks) {
@@ -381,7 +471,7 @@ sub showList{
 	    $dueDate = "___"
 	}
 	else{ #convert from unix dueDates to "Month Day"
-	    $dueDate = UnixDate(ParseDate("epoch $dueDate"),"%b%e");
+	    $dueDate = UnixDate(ParseDate("epoch $dueDate"),"%b %e");
 	}
         
 	
