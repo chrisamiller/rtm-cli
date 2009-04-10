@@ -88,25 +88,39 @@ my $res;
      $param_show, $param_add, $param_undo,
      $help, $verbose);
 
-$ua->init;
 
 #if no options given, print list
 unless (@ARGV){
+    $ua->init;
     showList();
     exit;
 }
 my $arg0 = shift(@ARGV);
 
+#authorize
 if ($arg0 eq "authorize"){
-    authorize()
+    authorize();
 }
-elsif (($arg0 eq "add") || $arg0 eq "a"){
+else{
+    $ua->init;
+}
+
+
+#add a task
+if (($arg0 eq "add") || $arg0 eq "a"){
     my $taskName = "";
     foreach my $num (0 .. $#ARGV) {
 	$taskName = $taskName . " " . $ARGV[$num];
     }
     addTask($taskName);
 }
+
+#delete a task
+elsif (($arg0 eq "del") || $arg0 eq "d" || $arg0 eq "delete"){
+    my $taskNum = shift(@ARGV);
+    alterTask("tasks_delete", $taskNum, "deleted");
+}
+
 exit;
 
 
@@ -280,26 +294,24 @@ I<in that previous list, mark tasks 3, 6 and 9 to 12 as completed>
 
 =cut
 
-# sub alterTask{
-#     my ($action,$actNum) = @_;
-#     foreach my $taskNum (expand_list $list) {
-# #         warn "$0: task $tnum does not exist\n" if not exists $tasks->{$tnum};
-# #         my %task = %{$tasks->{$tnum}};
-# #         my ($lid, $tsid, $id, $name) = 
-# #             @task{'list_id', 'taskseries_id', 'task_id', 'name'};
+sub alterTask{
+    my ($action,$taskNum,$message) = @_;
+    my %tasks = getTaskList("filter=status:incomplete","");
+#    print Dumper(\%tasks)."\n";
+#    print $tasks{'2'}->{dueDate};
 
-# #         no strict 'refs';
-# #         my $res = $ua->$method("list_id=$lid","taskseries_id=$tsid","task_id=$id");
-# #         warn $ua->error if not defined $res;
-# #         print "$message `$name'\n" if $verbose;
-# #     }
-# # }   
+    die "task $taskNum does not exist\n" if not exists $tasks{$taskNum};
+ 
+    my %task = %{$tasks{$taskNum}};
+    my ($lid, $tsid, $id, $name) = 
+	@task{'list_id', 'taskseries_id', 'task_id', 'name'};
+    
+    no strict 'refs';
+    my $res = $ua->$action("list_id=$lid","taskseries_id=$tsid","task_id=$id");
+    warn $ua->error if not defined $res;
+    print "$message `$name'\n"
+}
 
-# }
-
-# if (defined $param_delete or defined $param_complete or defined $param_uncomplete) {
-#      my %tasks = task_list($param_filter, $list_id ?  "list_id=$list_id" : "");
-#      act_on_tasklist \%tasks, 'tasks_delete', 'deleted', $param_delete if defined $param_delete;
 
 
 #sub act_on_tasklist {
