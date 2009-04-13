@@ -3,7 +3,6 @@
 # Command-line interface to www.rememberthemilk.com
 # Author: Chris Miller (chrisamiller@gmail.com)
 #
-#
 # Based on rtm by Yves Rutschle (http://www.rutschle.net/rtm/)
 # 
 # This program is free software; you can redistribute it
@@ -21,40 +20,37 @@
 # The full text for the General Public License is here:
 # http://www.gnu.org/licenses/gpl.html
 
-=head1 NAME
 
- rtm - access rememberthemilk.com
+sub usage{
 
-=head1 SYNOPSIS
+print " 
 
- rtm [--filter     | -f  <filter>]
-     [--verbose    | -v ]
-      --show       | -s  [list|task]
-      --list       | -l  <listnum>
-      --add        | -a  <taskname>
-      --dueDate    | -d  <date>
-      --complete   | -c  <tasklist>
-      --remove     | -r  <tasklist>
-      --uncomplete | -u <tasklist>
-      --undo [<action>]
+Access rememberthemilk.com via the command line 
 
- rtm --help
+This script isn't meant to implement a complete feature 
+set, just to make the four or five things I do often easy.
+It supports only a single list and a very basic set of 
+functions.
 
-=head1 DESCRIPTION
+Usage:
 
-B<rtm> provides a command line interface to the online TODO
-list service found at C<http://www.rememberthemilk.com>
-(called I<rtm> in the rest of this page).
+rtm authorize  - prints an authorization URL. 
+                 only needs to be run once
 
-You need to allow B<rtm> to access your I<rtm> account.
-First you should call B<rtm --authorize>, which will give
-you an authentication URL on C<rememberthemilk.com>. You
-should then direct your browser to that URL, and allow
-access. Next time you call B<rtm>, it will finish the
-authentication procedure, which you should then never have
-to do again.
+rtm add <task> - add a task
+   alias: a
+ 
 
-=cut
+add | a
+delete | rm | r 
+complete | c
+uncomplete | u
+postpone | p
+date | d
+filter 
+";
+
+}
 
 use WebService::RTMAgent;
 use Pod::Usage;
@@ -72,7 +68,7 @@ my $ua = new WebService::RTMAgent;
 $ua->verbose('');  # /netout|netin/
 
 # These are mine! Please request your own if you're going to build an
-# application on top of the RTM module. Otherwise (if you use my own rtm script)
+# application on top of the RTM module. Otherwise (if you use this rtm script)
 # just use them
 $ua->api_key("149ce058a1667e914ff370c0e565d77b");
 $ua->api_secret("40963b4c7dc48eae");
@@ -83,58 +79,135 @@ $ua->env_proxy;
 
 my $res;
 
- my ($param_getauth, $param_complete, $param_list, 
-     $param_filter, $param_delete, $param_uncomplete,
-     $param_show, $param_add, $param_undo,
-     $help, $verbose);
+# my ($param_getauth, $param_complete, $param_list, 
+#     $param_filter, $param_delete, $param_uncomplete,
+#     $param_show, $param_add, $param_undo,
+#     $help, $verbose);
 
 
-#if no options given, print list
-unless (@ARGV){
+#is this an authorize call?
+if (@ARGV){
+    my $action = shift(@ARGV);
+
+    # print auth URL
+    if ($action eq "authorize"){
+	authorize();
+	exit 0;
+    }
+
     $ua->init;
-    showList();
-    exit;
-}
-my $arg0 = shift(@ARGV);
 
-#authorize
-if ($arg0 eq "authorize"){
-    authorize();
+    # quick add a task
+    if (($action eq "add") || ($action eq "a")){
+	my $taskName = "";
+	#cat arguments into one big string
+	foreach my $num (1 .. $#ARGV) {
+	    $taskName = $taskName . " " . $ARGV[$num];
+	}
+	addTask($taskName);	
+    }
+
+    # list with filter
+    elsif (($action eq "filter") || ($action eq "f")){
+	#cat arguments into one big string
+	my $filter = "";
+	foreach my $num (1 .. $#ARGV) {
+	    $filter = $filter . " " . $ARGV[$num];
+	}
+	mainLoop($filter);
+    }
+
+    # some other action, just enter loop
+    else{
+	mainLoop();
+    }	
 }
+#no arguments given
 else{
     $ua->init;
+    mainLoop();
+    exit;
 }
 
 
-#add a task
-if (($arg0 eq "add") || $arg0 eq "a"){
-    my $taskName = "";
-    foreach my $num (0 .. $#ARGV) {
-	$taskName = $taskName . " " . $ARGV[$num];
+
+sub mainLoop(){
+    my ($filter) = @_;
+    my $quit = 0;
+    my $action = "";    
+    my $loopCounter = 0;
+
+
+    while ($quit == 0){
+	# first run, get the list
+	if ($loopCounter == 0){
+	    if (defined($filter)){
+		$list = getTaskList("filter=status:incomplete","");
+	    }
+	    else{
+		$list = getTaskList("","");
+	    }
+	    showList($list);
+	}	
+
+	# check the action
+	else{
+
+	    #remove a task
+	    if ($action eq "rm") || ($action eq "r") || ($action eq "delete"){
+		interactiveAlter("delete",$list);
+	    }
+            #complete a task
+	    elsif (($action eq "c") || $action eq "complete"){		
+		interactiveAlter("complete",$list);
+	    }
+            #uncomplete a task
+	    elsif (($action eq "uncomplete") || $action eq "u"){
+		interactiveAlter("uncomplete",$list);
+	    }
+            #postpone a task
+	    elsif (($action eq "postpone") || $action eq "p"){
+		interactiveAlter("postpone",$list);
+	    }
+	    #add a task
+	    elsif (($action eq "add") || ($action eq "a")){
+		interactiveAdd($list);
+	    }
+	    
+	    
+
+	    #invalid input
+	    else{
+		print "invalid action\n";
+		showList($list);
+	    }
+	}	
+	
+	$action = prompt();		
+	$loopCounter++;
+    }#end while
+}#end mainLoop
+
+
+
+sub prompt(){
+    print ": ";
+    $input = <STDIN>;
+    return $input
+}
+
+
+#prompts for task number to alter.
+sub interactiveAlter(){
+    my $action=shift(@_);
+    if ($action eq "delete"){
+	print "task to $action: ";
+	$input = <STDIN>;
+	alterTask("tasks_$action", $taskNum, $action . "d");
     }
-    addTask($taskName);
 }
 
-#remove a task
-elsif (($arg0 eq "rm") || $arg0 eq "r" || $arg0 eq "delete"){
-    my $taskNum = shift(@ARGV);
-    alterTask("tasks_delete", $taskNum, "deleted");
-}
-#complete a task
-elsif (($arg0 eq "c") || $arg0 eq "complete"){
-    my $taskNum = shift(@ARGV);
-    alterTask("tasks_complete", $taskNum, "completed");
-}
-#uncomplete a task
-elsif (($arg0 eq "uncomplete") || $arg0 eq "u"){
-    my $taskNum = shift(@ARGV);
-    alterTask("tasks_uncomplete", $taskNum, "uncompleted");
-}
-#postpone a task
-elsif (($arg0 eq "postpone") || $arg0 eq "p"){
-    my $taskNum = shift(@ARGV);
-    alterTask("tasks_postpone", $taskNum, "postpone");
-}
+
 #change a task's data
 elsif (($arg0 eq "date") || $arg0 eq "d"){
     my $taskNum = shift(@ARGV);
@@ -147,15 +220,84 @@ elsif (($arg0 eq "date") || $arg0 eq "d"){
     }
     setDueDate($taskNum, $date);
 }
-#only show today's tasks
-elsif (($arg0 eq "uncomplete") || $arg0 eq "u"){
-    my $taskNum = shift(@ARGV);
-    alterTask("tasks_uncomplete", $taskNum, "uncompleted");
-}
+
 #list only today's tasks
 elsif ($arg0 eq "today"){
     showList($arg0);
 }
+
+#show list with provided filter applied
+elsif ($arg0 eq "filter"){
+    my $filter = $ARGV[0];
+    foreach my $num (1 .. $#ARGV) {
+	$filter = $filter . " " . $ARGV[$num];
+    }
+    showList($filter);
+}
+
+}
+
+
+
+
+
+
+#authorize
+if ($arg0 eq "authorize"){
+    authorize();
+}
+else{
+    $ua->init;
+}
+
+
+#add a task
+if (($arg0 eq "add") || $arg0 eq "a"){
+
+}
+
+#remove a task
+elsif (($arg0 eq "rm") || $arg0 eq "r" || $arg0 eq "delete"){
+    my $taskNum = shift(@ARGV);
+    alterTask("tasks_delete", $taskNum, "deleted");
+}
+
+#complete a task
+elsif (($arg0 eq "c") || $arg0 eq "complete"){
+    my $taskNum = shift(@ARGV);
+    alterTask("tasks_complete", $taskNum, "completed");
+}
+
+#uncomplete a task
+elsif (($arg0 eq "uncomplete") || $arg0 eq "u"){
+    my $taskNum = shift(@ARGV);
+    alterTask("tasks_uncomplete", $taskNum, "uncompleted");
+}
+
+#postpone a task
+elsif (($arg0 eq "postpone") || $arg0 eq "p"){
+    my $taskNum = shift(@ARGV);
+    alterTask("tasks_postpone", $taskNum, "postpone");
+}
+
+#change a task's data
+elsif (($arg0 eq "date") || $arg0 eq "d"){
+    my $taskNum = shift(@ARGV);
+    my $date = shift(@ARGV);
+    foreach my $num (2 .. $#ARGV) {
+	$date = $date . " " . $ARGV[$num];
+    }
+    unless (defined($taskNum) && defined($date)){
+	die "invalid task number or date";
+    }
+    setDueDate($taskNum, $date);
+}
+
+#list only today's tasks
+elsif ($arg0 eq "today"){
+    showList($arg0);
+}
+
 #show list with provided filter applied
 elsif ($arg0 eq "filter"){
     my $filter = $ARGV[0];
