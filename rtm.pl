@@ -21,6 +21,71 @@
 # http://www.gnu.org/licenses/gpl.html
 
 
+
+
+#Prints an authorization URL. This is the first thing you
+#should do before using this program. You should then go to
+#the specified URL, log in using your username and password,
+#and authorize this program to use your data.
+
+
+# Mark tasks as deleted, complete or uncomplete. I<tasklist>
+# is a list of task numbers as returned by --list, with the
+# same filter.  Several tasks can be specified separated with
+# comas, and ranges with dashes.
+
+#  rtm --list 2 --filter tag:bananas
+
+# I<rtm outputs a list of numbered tasks>
+
+#  rtm --list 2 --filter tag:bananas --complete 3,6,9-12
+
+# I<in that previous list, mark tasks 3, 6 and 9 to 12 as completed>
+
+
+
+
+#libs, etc
+use WebService::RTMAgent;
+use Pod::Usage;
+use Getopt::Long;
+use Date::Manip;
+
+use Data::Dumper;
+
+use strict;
+
+
+my $ua = new WebService::RTMAgent;
+
+
+
+$ua->verbose('');  # /netout|netin/
+
+# These are mine! Please request your own if you're going to build an
+# application on top of the RTM module. Otherwise (if you use this rtm script)
+# just use them
+$ua->api_key("149ce058a1667e914ff370c0e565d77b");
+$ua->api_secret("40963b4c7dc48eae");
+
+$ua->no_proxy();
+$ua->env_proxy;
+
+
+my $res;
+
+# my ($param_getauth, $param_complete, $param_list, 
+#     $param_filter, $param_delete, $param_uncomplete,
+#     $param_show, $param_add, $param_undo,
+#     $help, $verbose);
+
+
+
+my $verbose = 1;
+
+
+
+
 sub usage{
 
 print " 
@@ -52,284 +117,13 @@ filter
 
 }
 
-use WebService::RTMAgent;
-use Pod::Usage;
-use Getopt::Long;
-use Date::Manip;
-
-use Data::Dumper;
-
-use strict;
-
-my $ua = new WebService::RTMAgent;
 
 
-
-$ua->verbose('');  # /netout|netin/
-
-# These are mine! Please request your own if you're going to build an
-# application on top of the RTM module. Otherwise (if you use this rtm script)
-# just use them
-$ua->api_key("149ce058a1667e914ff370c0e565d77b");
-$ua->api_secret("40963b4c7dc48eae");
-
-$ua->no_proxy();
-$ua->env_proxy;
-
-
-my $res;
-
-# my ($param_getauth, $param_complete, $param_list, 
-#     $param_filter, $param_delete, $param_uncomplete,
-#     $param_show, $param_add, $param_undo,
-#     $help, $verbose);
-
-
-#is this an authorize call?
-if (@ARGV){
-    my $action = shift(@ARGV);
-
-    # print auth URL
-    if ($action eq "authorize"){
-	authorize();
-	exit 0;
-    }
-
-    $ua->init;
-
-    # quick add a task
-    if (($action eq "add") || ($action eq "a")){
-	my $taskName = "";
-	#cat arguments into one big string
-	foreach my $num (1 .. $#ARGV) {
-	    $taskName = $taskName . " " . $ARGV[$num];
-	}
-	addTask($taskName);	
-    }
-
-    # list with filter
-    elsif (($action eq "filter") || ($action eq "f")){
-	#cat arguments into one big string
-	my $filter = "";
-	foreach my $num (1 .. $#ARGV) {
-	    $filter = $filter . " " . $ARGV[$num];
-	}
-	mainLoop($filter);
-    }
-
-    # some other action, just enter loop
-    else{
-	mainLoop();
-    }	
+# prints an authorization URL
+sub authorize{
+     print($ua->get_auth_url."\n");
+     exit 0;
 }
-#no arguments given
-else{
-    $ua->init;
-    mainLoop();
-    exit;
-}
-
-
-
-sub mainLoop(){
-    my ($filter) = @_;
-    my $quit = 0;
-    my $action = "";    
-    my $loopCounter = 0;
-
-
-    while ($quit == 0){
-	# first run, get the list
-	if ($loopCounter == 0){
-	    if (defined($filter)){
-		$list = getTaskList("filter=status:incomplete","");
-	    }
-	    else{
-		$list = getTaskList("","");
-	    }
-	    showList($list);
-	}	
-
-	# check the action
-	else{
-
-	    #remove a task
-	    if ($action eq "rm") || ($action eq "r") || ($action eq "delete"){
-		interactiveAlter("delete",$list);
-	    }
-            #complete a task
-	    elsif (($action eq "c") || $action eq "complete"){		
-		interactiveAlter("complete",$list);
-	    }
-            #uncomplete a task
-	    elsif (($action eq "uncomplete") || $action eq "u"){
-		interactiveAlter("uncomplete",$list);
-	    }
-            #postpone a task
-	    elsif (($action eq "postpone") || $action eq "p"){
-		interactiveAlter("postpone",$list);
-	    }
-	    #add a task
-	    elsif (($action eq "add") || ($action eq "a")){
-		interactiveAdd($list);
-	    }
-	    
-	    
-
-	    #invalid input
-	    else{
-		print "invalid action\n";
-		showList($list);
-	    }
-	}	
-	
-	$action = prompt();		
-	$loopCounter++;
-    }#end while
-}#end mainLoop
-
-
-
-sub prompt(){
-    print ": ";
-    $input = <STDIN>;
-    return $input
-}
-
-
-#prompts for task number to alter.
-sub interactiveAlter(){
-    my $action=shift(@_);
-    if ($action eq "delete"){
-	print "task to $action: ";
-	$input = <STDIN>;
-	alterTask("tasks_$action", $taskNum, $action . "d");
-    }
-}
-
-
-#change a task's data
-elsif (($arg0 eq "date") || $arg0 eq "d"){
-    my $taskNum = shift(@ARGV);
-    my $date = shift(@ARGV);
-    foreach my $num (2 .. $#ARGV) {
-	$date = $date . " " . $ARGV[$num];
-    }
-    unless (defined($taskNum) && defined($date)){
-	die "invalid task number or date";
-    }
-    setDueDate($taskNum, $date);
-}
-
-#list only today's tasks
-elsif ($arg0 eq "today"){
-    showList($arg0);
-}
-
-#show list with provided filter applied
-elsif ($arg0 eq "filter"){
-    my $filter = $ARGV[0];
-    foreach my $num (1 .. $#ARGV) {
-	$filter = $filter . " " . $ARGV[$num];
-    }
-    showList($filter);
-}
-
-}
-
-
-
-
-
-
-#authorize
-if ($arg0 eq "authorize"){
-    authorize();
-}
-else{
-    $ua->init;
-}
-
-
-#add a task
-if (($arg0 eq "add") || $arg0 eq "a"){
-
-}
-
-#remove a task
-elsif (($arg0 eq "rm") || $arg0 eq "r" || $arg0 eq "delete"){
-    my $taskNum = shift(@ARGV);
-    alterTask("tasks_delete", $taskNum, "deleted");
-}
-
-#complete a task
-elsif (($arg0 eq "c") || $arg0 eq "complete"){
-    my $taskNum = shift(@ARGV);
-    alterTask("tasks_complete", $taskNum, "completed");
-}
-
-#uncomplete a task
-elsif (($arg0 eq "uncomplete") || $arg0 eq "u"){
-    my $taskNum = shift(@ARGV);
-    alterTask("tasks_uncomplete", $taskNum, "uncompleted");
-}
-
-#postpone a task
-elsif (($arg0 eq "postpone") || $arg0 eq "p"){
-    my $taskNum = shift(@ARGV);
-    alterTask("tasks_postpone", $taskNum, "postpone");
-}
-
-#change a task's data
-elsif (($arg0 eq "date") || $arg0 eq "d"){
-    my $taskNum = shift(@ARGV);
-    my $date = shift(@ARGV);
-    foreach my $num (2 .. $#ARGV) {
-	$date = $date . " " . $ARGV[$num];
-    }
-    unless (defined($taskNum) && defined($date)){
-	die "invalid task number or date";
-    }
-    setDueDate($taskNum, $date);
-}
-
-#list only today's tasks
-elsif ($arg0 eq "today"){
-    showList($arg0);
-}
-
-#show list with provided filter applied
-elsif ($arg0 eq "filter"){
-    my $filter = $ARGV[0];
-    foreach my $num (1 .. $#ARGV) {
-	$filter = $filter . " " . $ARGV[$num];
-    }
-    showList($filter);
-}
-
-
-
-exit;
-
-
-# GetOptions(
-#     'authorize'         => \$param_getauth,
-
-#     'add=s'             => \$param_add,
-#     'complete=s'        => \$param_complete,
-#     'uncomplete=s'      => \$param_uncomplete,
-#     'delete=s'          => \$param_delete,
-
-#     'undo:s'            => \$param_undo,
-
-#     'list=i'            => \$param_list,
-#     'filter=s'          => \$param_filter,
-#     'verbose'           => \$verbose,
-#     'show:s'            => \$param_show,
-#     'help'              => \$help,
-# ) or die pod2usage();
-
-# die pod2usage(-verbose=>2) if defined $help;
 
 
 
@@ -374,11 +168,8 @@ sub getTaskList {
     return map { $cnt++, $_ } sort { $a->{dueDate} <=> $b->{dueDate} } @out;
 }
 
-#sort {$tasks{$a}->{dueDate} cmp $tasks{$b}->{dueDate}} keys %tasks) {
 
-#
 # Retrieve the list of possible lists
-#
 # returns a hash of   number => list hash
 # with number guaranteed to be consistent (sorted by list_id)
 sub list_lists {
@@ -391,108 +182,190 @@ sub list_lists {
 }
 
 # Turns "1,4,8-12" into a list [1, 4, 8, 9, 11, 12];
-sub expand_list {
+# allows for multiple tasks to be altered at once
+sub expandList {
     return map {  /(\d+)-(\d+)/ ? ($1..$2): $_; } split ',',$_[0];
 }
 
-=head1 OPTIONS
-
-=over 4
-
-=item B<--verbose|-v>
-
-explain what is being done
-
-=item B<--authorize>
-
-Prints an authorization URL. This is the first thing you
-should do before using this program. You should then go to
-the specified URL, log in using your username and password,
-and authorize this program to use your data.
-
-=cut
 
 
-sub authorize{
-     print($ua->get_auth_url."\n");
-     exit 0;
+#interactive loop.  shows list, allows user to act upon it
+sub mainLoop {
+    my $filter = shift(@_);
+    
+    my $quit = 0;
+    my $action = "";    
+    my $putList = 1;
+    my %list;
+    
+    while ($quit == 0){
+    # check the action
+	unless ($action eq ""){
+	    print "checking for action $action\n" if $verbose;
+	    #remove a task
+	    if (($action eq "rm") || ($action eq "r") || ($action eq "delete")){
+		interactiveAlter("delete",%list);
+		$action = "";		
+	    }
+            #complete a task
+	    elsif (($action eq "c") || ($action eq "complete")){		
+		interactiveAlter("complete",%list);
+		$action = "";		
+	    }
+            #uncomplete a task
+	    elsif (($action eq "uncomplete") || ($action eq "u")){
+		interactiveAlter("uncomplete",%list);
+		$action = "";		
+	    }
+            #postpone a task
+	    elsif (($action eq "postpone") || ($action eq "p")){
+		interactiveAlter("postpone",%list);
+		$action = "";		
+	    }
+	    #add a task
+	    elsif (($action eq "add") || ($action eq "a")){
+		interactiveAdd();
+		$action = ""; 
+	    }
+
+	    #quit
+	    elsif (($action eq "list") || ($action eq "l")){
+		$action = "0"
+	    }
+
+	    #quit
+	    elsif (($action eq "quit") || ($action eq "q")){
+		$quit = 1;
+		exit;
+	    }
+
+
+	    #invalid input
+	    else{
+		print "invalid action\n";
+	    }
+	}	
+
+        # do I need to fetch a new list?
+	if ($action eq ""){ 
+	    if (defined($filter)){
+		%list = getTaskList("filter=status:incomplete","");
+	    }
+	    else{
+		%list = getTaskList("","");
+	    }
+	    showList(%list);
+	}	
+	
+	# prompt for a new action
+	$action = prompt();		       
+    }#end while
+}#end mainLoop
+
+
+
+sub prompt(){
+    print ": ";
+    my $input = <STDIN>;    
+    chomp($input);
+    return $input
 }
 
 
+#prompts for task number to alter.
+sub interactiveAlter(){
+    my ($action,%list) = @_;
+    print "task to $action: ";
+    my $taskNum = <STDIN>;
+    chomp($taskNum);
+#    print "alterTask: tasks_$action, " . expandList($taskNum) . "$action" . "d\n" if $verbose;
+    alterTask("tasks_$action", expandList($taskNum), $action . "d", %list);
+}
+
+sub interactiveAdd{
+    print "task to add: ";
+    my $taskName = <STDIN>;
+    chomp($taskName);
+#    print "adding: $taskName \n" if $verbose;
+    addTask($taskName)
+}
 
 
-=item B<--filter> I<filter>
+# #change a task's data
+# elsif (($arg0 eq "date") || $arg0 eq "d"){
+#     my $taskNum = shift(@ARGV);
+#     my $date = shift(@ARGV);
+#     foreach my $num (2 .. $#ARGV) {
+# 	$date = $date . " " . $ARGV[$num];
+#     }
+#     unless (defined($taskNum) && defined($date)){
+# 	die "invalid task number or date";
+#     }
+#     setDueDate($taskNum, $date);
+# }
 
-Specifies a filter to apply to the list of tasks.
-See
-L<http://www.rememberthemilk.com/help/answers/search/advanced.rtm>
-for details on the filters.
+# #list only today's tasks
+# elsif ($arg0 eq "today"){
+#     showList($arg0);
+# }
 
-=item B<--list> I<list_num>
-
-Specifies a list on which to apply actions. I<list_num> is
-the number returned by C<rtm --show list>.
-
-=cut
-
-#my $list_id;
-# if (defined $param_list) {
-#     my %lists = list_lists;
-#     die "list $param_list does not exist\n" if not exists $lists{$param_list};
-
-#     $list_id = $lists{$param_list}->{id};
-#     warn "working on list $list_id `$lists{$param_list}->{name}'\n" if $verbose;
+# #show list with provided filter applied
+# elsif ($arg0 eq "filter"){
+#     my $filter = $ARGV[0];
+#     foreach my $num (1 .. $#ARGV) {
+# 	$filter = $filter . " " . $ARGV[$num];
+#     }
+#     showList($filter);
 # }
 
 
 
-=item B<--add> I<taskname>
 
-Adds a task called I<taskname>. If not list is specified
-with B<--list>, the task is added to the Inbox.
 
-=cut
 
+# GetOptions(
+#     'authorize'         => \$param_getauth,
+
+#     'add=s'             => \$param_add,
+#     'complete=s'        => \$param_complete,
+#     'uncomplete=s'      => \$param_uncomplete,
+#     'delete=s'          => \$param_delete,
+
+#     'undo:s'            => \$param_undo,
+
+#     'list=i'            => \$param_list,
+#     'filter=s'          => \$param_filter,
+#     'verbose'           => \$verbose,
+#     'show:s'            => \$param_show,
+#     'help'              => \$help,
+
+
+
+
+
+
+# Adds a task to given list
+# takes 1 argument: name of task to add
 sub addTask{
-    my $name=shift(@_);
-    print "$name\n";
+    my ($name) = @_;
+#    print "adding: $name\n";
     my $res = $ua->tasks_add("name=$name","parse=1","");
     die $ua->error unless defined $res;
     print "Added new task: \"$name\"\n";
 }
 
-=item B<--delete> I<tasklist>
 
-=item B<--complete> I<tasklist>
 
-=item B<--uncomplete> I<tasklist>
-
-Mark tasks as deleted, complete or uncomplete. I<tasklist>
-is a list of task numbers as returned by --list, with the
-same filter.  Several tasks can be specified separated with
-comas, and ranges with dashes.
-
- rtm --list 2 --filter tag:bananas
-
-I<rtm outputs a list of numbered tasks>
-
- rtm --list 2 --filter tag:bananas --complete 3,6,9-12
-
-I<in that previous list, mark tasks 3, 6 and 9 to 12 as completed>
-
-=cut
-
+#alters the task in the specified manner
+#
 sub alterTask{
-    my ($action,$taskList,$message) = @_;
+    my ($action,$taskList,$message,%list) = @_;
     
-    #get the list
-    my %tasks = getTaskList("filter=status:incomplete","");
- 
     #for each task
-    foreach my $taskNum (expand_list $taskList) {
-	die "task $taskNum does not exist\n" if not exists $tasks{$taskNum};
+    foreach my $taskNum (expandList $taskList) {
+	die "task $taskNum does not exist\n" if not exists $list{$taskNum};
 #	print "$taskNum\n"
-	my %task = %{$tasks{$taskNum}};
+	my %task = %{$list{$taskNum}};
 	my ($lid, $tsid, $id, $name) = 
 	    @task{'list_id', 'taskseries_id', 'task_id', 'name'};
 	
@@ -521,39 +394,65 @@ sub setDueDate{
     print "Date of \"$name\" changed to $date\n"
 }
 
-#sub act_on_tasklist {
-#     my ($tasks, $method, $message, $list) = @_;
-#     foreach my $tnum (expand_list $list) {
-#         warn "$0: task $tnum does not exist\n" if not exists $tasks->{$tnum};
-#         my %task = %{$tasks->{$tnum}};
-#         my ($lid, $tsid, $id, $name) = 
-#             @task{'list_id', 'taskseries_id', 'task_id', 'name'};
 
-#         no strict 'refs';
-#         my $res = $ua->$method("list_id=$lid","taskseries_id=$tsid","task_id=$id");
-#         warn $ua->error if not defined $res;
-#         print "$message `$name'\n" if $verbose;
-#     }
-# }
+# retrieves and displays the task list
+# TODO: renumber events in date order
+# TODO: add filter as option
+sub showList{
+    print "\n\n";
+    my (%list) = @_;
 
-# if (defined $param_delete or defined $param_complete or
-#     defined $param_uncomplete) {
-#     my %tasks = task_list($param_filter, $list_id ?  "list_id=$list_id" : "");
-#     act_on_tasklist \%tasks, 'tasks_delete', 'deleted', $param_delete if defined $param_delete;
-#     act_on_tasklist \%tasks, 'tasks_complete', 'completed', $param_complete if defined $param_complete;
-#     act_on_tasklist \%tasks, 'tasks_uncomplete', 'uncompleted', $param_uncomplete if defined $param_uncomplete;
-# }
+	
+#    # if we have an input filter
+#    if (defined $filter){	
+#	#Just today's tasks
+#	if ($filter eq "today"){
+#	    $filter="filter=due:today";
+#	    print "\nToday's Tasks:\n";
+#	}
+#	#user-defined filter
+#	elsif ($filter =~ m/\w+\:\w+/){
+#	    print "trying your filter: $filter\n";
+#	    $filter="filter=". $filter
+#	}
+#	else{
+#	    die "bad filter match"
+#	}
+#    }
+#    else{ #no filter, just show incomplete tasks
+#	$filter="filter=status:incomplete";
+#    }	    
 
-=item B<--show> I<list|task>
 
-If the parameter is 'list', prints all the lists available.
-If the parameter is a number, it is taken to be the task
-number and that task's details are printed.
-If no parameter is present, all the tasks are printed
-(taking in account the filter, active list and so on, that
-is).
 
-=cut
+#     #get the tasks (all incomplete)
+#     my %tasks = getTaskList($filter,"");
+# #    print Dumper(\%tasks)."\n";
+
+    my $prevDate = 0;
+    foreach my $i (sort {$list{$a}->{dueDate} cmp $list{$b}->{dueDate}} keys %list) {
+	
+	my $dueDate = $list{$i}->{dueDate};
+	#convert blank dueDates
+	if ($dueDate == 999999999999999){
+	    $dueDate = "___"
+	}
+	else{ #convert from unix dueDates to "Month Day"
+	    $dueDate = UnixDate(ParseDate("epoch $dueDate"),"%b %e");
+	}
+        
+	
+	#spacing between days
+	unless ("$prevDate" eq "$dueDate"){
+	    print "----------------------\n" ;
+	}
+	
+	print "$i:\t" . padName($list{$i}->{name}) . "\t" . $dueDate . "\n";
+	$prevDate = $dueDate
+    }
+    print "\n" #some trailing space for CLI
+}
+
 
 
 # pads (or truncates) a string to a set number of characters
@@ -571,72 +470,14 @@ sub padName {
 }
 
 
-# retrieves and displays the task list
-# TODO: renumber events in date order
-# TODO: add filter as option
-sub showList{
+# =item B<--undo> [I<action>]
 
-    #parse filters
-    my $filter=shift;
-    # if we have an input filter
-    if (defined $filter){	
-	#Just today's tasks
-	if ($filter eq "today"){
-	    $filter="filter=due:today";
-	    print "\nToday's Tasks:\n";
-	}
-	#user-defined filter
-	elsif ($filter =~ m/\w+\:\w+/){
-	    print "trying your filter: $filter\n";
-	    $filter="filter=". $filter
-	}
-	else{
-	    die "bad filter match"
-	}
-    }
-    else{ #no filter, just show incomplete tasks
-	$filter="filter=status:incomplete";
-    }	    
+# If no parameter is given, prints a list of the actions that
+# can be undone. If a parameter is given, it is the number of
+# the action to be undone, as found in that list. (just try
+# it, it's quite intuitive really).
 
-
-
-    #get the tasks (all incomplete)
-    my %tasks = getTaskList($filter,"");
-#    print Dumper(\%tasks)."\n";
-
-    my $prevDate = 0;
-    foreach my $i (sort {$tasks{$a}->{dueDate} cmp $tasks{$b}->{dueDate}} keys %tasks) {
-	
-	my $dueDate = $tasks{$i}->{dueDate};
-	#convert blank dueDates
-	if ($dueDate == 999999999999999){
-	    $dueDate = "___"
-	}
-	else{ #convert from unix dueDates to "Month Day"
-	    $dueDate = UnixDate(ParseDate("epoch $dueDate"),"%b %e");
-	}
-        
-	
-	#spacing between days
-	unless ("$prevDate" eq "$dueDate"){
-	    print "----------------------\n" ;
-	}
-	
-	print "$i:\t" . padName($tasks{$i}->{name}) . "\t" . $dueDate . "\n";
-	$prevDate = $dueDate
-    }
-    print "\n" #some trailing space for CLI
-}
-
-
-=item B<--undo> [I<action>]
-
-If no parameter is given, prints a list of the actions that
-can be undone. If a parameter is given, it is the number of
-the action to be undone, as found in that list. (just try
-it, it's quite intuitive really).
-
-=cut
+# =cut
 
 
 # if (defined $param_undo) {
@@ -659,55 +500,107 @@ it, it's quite intuitive really).
 # }
 
 
-=back
+# end subs
+##############################################################
+#begin main
 
-=head1 CONFIGURATION
 
-B<rtm> can be configured to use a proxy server. Simply
-define environment variables 'https_proxy' and 'http_proxy'.
-As this is pretty standard, your system might already be
-configured accordingly.
+#is this an authorize call?
+if (@ARGV){
+    my $action = shift(@ARGV);
 
-=head1 EXAMPLES
+    # print auth URL
+    if ($action eq "authorize"){
+	authorize();
+	exit 0;
+    }
 
-=over 4
+    $ua->init;
 
-=item rtm --show
+    # quick add a task
+    if (($action eq "add") || ($action eq "a")){
+	my $taskName = "";
+	#cat arguments into one big string
+	foreach my $num (1 .. $#ARGV) {
+	    $taskName = $taskName . " " . $ARGV[$num];
+	}
+	addTask($taskName);	
+	exit;
+    }
 
-=item rtm --delete 2,5,6-9 --complete 3,12-15
+    # list with filter
+    elsif (($action eq "filter") || ($action eq "f")){
+	#cat arguments into one big string
+	my $filter = "";
+	foreach my $num (1 .. $#ARGV) {
+	    $filter = $filter . " " . $ARGV[$num];
+	}
+	mainLoop($filter);
+    }
 
-List uncompleted tasks; in that list, delete tasks 2, 5, and
-6 to 9, and complete tasks 3, and 12 to 15.
+    # some other params, ignore and enter interactive mode
+    else{
+	mainLoop("filter=status:uncompleted");
+    }	
+}
+#no arguments given, interactive mode
+else{
+    $ua->init;
+    mainLoop("filter=status:completed");
+    exit;
+}
 
-=item rtm --show --filter status:completed
 
-List all completed tasks
 
-=item rtm --filter status:completed --uncomplete 5-10
+# =back
 
-Mark previously completed tasks 5 to 10 as uncomplete.
+# =head1 CONFIGURATION
 
-=item rtm --show list
+# B<rtm> can be configured to use a proxy server. Simply
+# define environment variables 'https_proxy' and 'http_proxy'.
+# As this is pretty standard, your system might already be
+# configured accordingly.
 
-=item rtm --list 3 --add "Do great things"
+# =head1 EXAMPLES
 
-Prints all available lists; add a task to list 3.
+# =over 4
 
-=head1 NOTES
+# =item rtm --show
 
-"Release early, release often!"
+# =item rtm --delete 2,5,6-9 --complete 3,12-15
 
-This is work in progress. 
+# List uncompleted tasks; in that list, delete tasks 2, 5, and
+# 6 to 9, and complete tasks 3, and 12 to 15.
 
-Bug reports and feature requests are accepted. Patches are
-even better.
+# =item rtm --show --filter status:completed
 
-=head1 SEE ALSO
+# List all completed tasks
 
-B<WebService::RTMAgent.pm>, which implements the B<rtm> API.
+# =item rtm --filter status:completed --uncomplete 5-10
 
-=head1 AUTHOR
+# Mark previously completed tasks 5 to 10 as uncomplete.
 
-Chris Miller <chrisamiller@gmail.com>
+# =item rtm --show list
+
+# =item rtm --list 3 --add "Do great things"
+
+# Prints all available lists; add a task to list 3.
+
+# =head1 NOTES
+
+# "Release early, release often!"
+
+# This is work in progress. 
+
+# Bug reports and feature requests are accepted. Patches are
+# even better.
+
+# =head1 SEE ALSO
+
+# B<WebService::RTMAgent.pm>, which implements the B<rtm> API.
+
+# =head1 AUTHOR
+
+# Chris Miller <chrisamiller@gmail.com>
 
 
