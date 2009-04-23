@@ -3,7 +3,7 @@
 # Command-line interface to www.rememberthemilk.com
 # Author: Chris Miller (chrisamiller@gmail.com)
 #
-# Based on rtm by Yves Rutschle (http://www.rutschle.net/rtm/)
+# Based loosely on rtm by Yves Rutschle (http://www.rutschle.net/rtm/)
 # 
 # This program is free software; you can redistribute it
 # and/or modify it under the terms of the GNU General Public
@@ -20,6 +20,17 @@
 # The full text for the General Public License is here:
 # http://www.gnu.org/licenses/gpl.html
 
+
+
+# Todo:
+# no more getting the entire list each time an action is performed
+# just request updates to the list (lastsync)
+# 
+# add shortcut syntax "r 3"
+# add support for date changes
+# add support for number ranges "1,2,3" and "1-3"
+# fix numbering order
+# use last_sync date
 
 
 
@@ -50,7 +61,7 @@ use WebService::RTMAgent;
 use Pod::Usage;
 use Getopt::Long;
 use Date::Manip;
-
+use DateTime;
 use Data::Dumper;
 
 use strict;
@@ -169,6 +180,11 @@ sub getTaskList {
 }
 
 
+#sub updateTaskList{
+#    getTaskList
+# %hash3 = (%hash1, %hash2);
+#}
+
 # Retrieve the list of possible lists
 # returns a hash of   number => list hash
 # with number guaranteed to be consistent (sorted by list_id)
@@ -197,7 +213,8 @@ sub mainLoop {
     my $action = "";    
     my $putList = 1;
     my %list;
-    
+    my $lastSync = "";
+
     while ($quit == 0){
     # check the action
 	unless ($action eq ""){
@@ -255,7 +272,24 @@ sub mainLoop {
 		%list = getTaskList("","");
 	    }
 	    showList(%list);
+##
+#	    my $key ="";
+#	    foreach $key (sort{$a<=>$b} keys %list) {
+#		print $key . ",";
+#	    }
+#	    print "\n";
+#	    print Dumper($list{21}) ."\n";
+#	    exit;
+##
 	}	
+
+
+#	$lastSync = DateTime->now;
+#	%list = getTaskList("filter=status:incomplete","last_sync=$lastSync");
+#	showList(%list);
+
+
+
 	
 	# prompt for a new action
 	$action = prompt();		       
