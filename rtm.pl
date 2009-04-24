@@ -252,10 +252,6 @@ sub updateTaskListPostAlter{
     # show up in the normal,incomplete list
     if ($action eq "delete" || $action eq "complete"){	
 	delete($list{$taskNum});	
-	#renumber list
-	my $cnt = 0;
-	my @vals = values(%list);
-	return map { $cnt++, $_ } sort { $a->{dueDate} <=> $b->{dueDate} || $a->{name} cmp $b->{name} } @vals;	
     }
     
     
@@ -269,7 +265,10 @@ sub updateTaskListPostAlter{
 	    }	
 	}
     }#end elsif
-    return %list;
+    #renumber list
+    my $cnt = 0;
+    my @vals = values(%list);
+    return map { $cnt++, $_ } sort { $a->{dueDate} <=> $b->{dueDate} || $a->{name} cmp $b->{name} } @vals;	
 }
 
 
