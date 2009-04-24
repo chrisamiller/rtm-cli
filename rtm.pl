@@ -23,15 +23,12 @@
 
 
 # Todo:
-# no more getting the entire list each time an action is performed
-# just request updates to the list (lastsync)
 # 
 # add shortcut syntax "r 3"
 # add support for date changes
 # add support for number ranges "1,2,3" and "1-3"
-# fix numbering order
-# use last_sync date
-
+# uncomplete
+# undo
 
 
 #Prints an authorization URL. This is the first thing you
@@ -103,33 +100,74 @@ print "
 
 Access rememberthemilk.com via the command line 
 
+COMMAND LINE USAGE:
+
+rtm authorize  - prints an authorization URL. This is the 
+                 first thing you should do before using this 
+                 program. You should then go to the specified 
+                 URL, log in using your username and password,
+                 and authorize this program to use your data.
+                 This only need to be done once.
+                 
+
+rtm add <task>
+rtm a <task>   - quick add a task
+
+
+
+INTERACTIVE USAGE:
+
+(a)dd          - add a task. Parses the string for 
+                 dates automatically.
+
+(c)omplete     - complete a task
+ 
+(r)emove       - remove a task from the list
+
+(p)ostpone     - postpones a task - changes the date
+                 to one day later
+
+(q) quit       - quit
+
+
+Not implemented yet:
+uncomplete | u
+postpone | p
+date | d
+filter 
+
 This script isn't meant to implement a complete feature 
 set, just to make the four or five things I do often easy.
 It supports only a single list and a very basic set of 
 functions.
 
-Usage:
+Configuration Notes:
+rtm can be configured to use a proxy server. Simply
+define environment variables 'https_proxy' and 'http_proxy'.
+As this is pretty standard, your system might already be
+configured accordingly.
 
-rtm authorize  - prints an authorization URL. 
-                 only needs to be run once
 
-rtm add <task> - add a task
-   alias: a
- 
+SEE ALSO
 
-add | a
-delete | rm | r 
-complete | c
-uncomplete | u
-postpone | p
-date | d
-filter 
+<WebService::RTMAgent.pm>, which implements the rtm API.
+
+
+AUTHOR
+
+Chris Miller <chrisamiller\@gmail.com>
+
+
+CREDITS
+
+Based loosely on rtm by Yves Rutschle (http://www.rutschle.net/rtm/)
+
 ";
 
 }
 
 
-
+#-----------------------------------------------------
 # prints an authorization URL
 sub authorize{
      print($ua->get_auth_url."\n");
@@ -137,11 +175,12 @@ sub authorize{
 }
 
 
-
+#-----------------------------------------------------
 # Returns a list of tasks depending on filter
 sub getTaskList {
-    my (@params) = @_;
-    $res = $ua->tasks_getList(@params);
+    my ($filter,$lastsync) = @_;
+
+    $res = $ua->tasks_getList($filter,$lastsync);
     die $ua->error unless defined $res;
 
     my @out;
@@ -156,13 +195,16 @@ sub getTaskList {
                 my $taskseries_id = $task->{id};
                 my $task_id = $task->{task}->[0]->{id};
 		my $dueDate = $task->{task}->[0]->{due};
+		# if no due date, set it to some unreasonable value so that
+		# a simple numerical sort will give us tasks without dates
+                # at the end of the list
 		if ($dueDate eq ""){
 		    $dueDate = 999999999999999;
 		}
 		else{
 		    $dueDate = UnixDate($dueDate,"%s");
 		}  
-
+		#push task details onto an array
                 push @out, {
                     list_id =>$list_id, 
                     taskseries_id => $taskseries_id, 
@@ -174,17 +216,87 @@ sub getTaskList {
             }
         }
     } 
+    #sort by due date, then name, return a hash with numeric keys in sorted order
     my $cnt = 0;
+    return map { $cnt++, $_ } sort { $a->{dueDate} <=> $b->{dueDate} || $a->{name} cmp $b->{name} } @out;
+}
 
-    return map { $cnt++, $_ } sort { $a->{dueDate} <=> $b->{dueDate} } @out;
+#-----------------------------------------------------
+# after an add, query RTM to get an updated list
+# that allows us to use the RTM date parsing
+sub updateTaskListPostAdd{
+    my ($filter,$lastSync,%list) = @_;
+    
+    #get the new tasks
+    my %newTasks = getTaskList($filter,"last_sync=$lastSync");
+
+    #toss the old and new values into an array
+    my @vals = values(%list);
+    while (my ($key, $val) = each %newTasks) {	
+	push(@vals, $val);
+    }
+
+    #sort by due date, then name, return a hash with numeric keys in sorted order
+    my $cnt = 0;
+    return map { $cnt++, $_ } sort { $a->{dueDate} <=> $b->{dueDate} || $a->{name} cmp $b->{name} } @vals;
+
+}
+
+#-----------------------------------------------------
+# after a alteration, update the list we have
+# locally - no need to do a server query
+sub updateTaskListPostAlter{
+    my ($taskNum,$action,$filter,$lastSync,%list) = @_;
+    
+    # functionally the same, since they won't 
+    # show up in the normal,incomplete list
+    if ($action eq "delete" || $action eq "complete"){	
+	delete($list{$taskNum});	
+	#renumber list
+	my $cnt = 0;
+	my @vals = values(%list);
+	return map { $cnt++, $_ } sort { $a->{dueDate} <=> $b->{dueDate} || $a->{name} cmp $b->{name} } @vals;	
+    }
+    
+    
+    elsif ($action eq "postpone" || $action eq "date" || $action eq "uncomplete"){
+	#get the changes
+	my %newTasks = getTaskList($filter,"last_sync=$lastSync");
+	#for each change, find it's match and update the hash
+	while (my ($key, $val) = each %newTasks) {	
+	    if ($val->{'taskseries_id'} eq $list{$taskNum}{'taskseries_id'}){
+		$list{$taskNum} = $val;
+	    }	
+	}
+    }#end elsif
+    return %list;
 }
 
 
-#sub updateTaskList{
-#    getTaskList
-# %hash3 = (%hash1, %hash2);
-#}
+#-----------------------------------------------------
+# after a alteration to date, query server, update task
+sub updateTaskListChangeDate{
+    my ($filter,$lastSync,%list) = @_;
+#    $filter = "filter=status:incomplete" if $filter = "";
+    
+    #get the changed tasks
+    my %newTasks = getTaskList($filter,"last_sync=$lastSync");
 
+    # sort the keys from the existing list
+    my @keys = (sort{$a<=>$b}(keys(%list)));
+    # get the next number
+    my $len = @keys;
+    my $last = $keys[$len];    
+    
+    # hash the new task in the correct place
+    while (my ($key, $val) = each %newTasks) {
+	$list{$len++} = $val;
+    }
+    return %list;
+}
+
+
+#-----------------------------------------------------
 # Retrieve the list of possible lists
 # returns a hash of   number => list hash
 # with number guaranteed to be consistent (sorted by list_id)
@@ -197,6 +309,7 @@ sub list_lists {
                 @{$res->{lists}->[0]->{list}};
 }
 
+#-----------------------------------------------------
 # Turns "1,4,8-12" into a list [1, 4, 8, 9, 11, 12];
 # allows for multiple tasks to be altered at once
 sub expandList {
@@ -204,49 +317,73 @@ sub expandList {
 }
 
 
+#-----------------------------------------------------
+sub mainLoopTest{
+    my $filter = shift(@_);
+    my %list = getTaskList($filter,"");
+    showList(%list);
+#    print Dumper(%list) ."\n" if $verbose;    
+    my $lastSync = DateTime->now;
+    #addTask("zzzzdddd");
+    alterTask("tasks_delete", "5", "deletedd", %list);
 
+    %list = updateTaskListPostAlter("5","delete",$filter,$lastSync,%list);
+
+#    my %newTasks = getTaskList($filter,"last_sync=$lastSync");
+#    print Dumper(%newTasks) ."\n";
+    showList(%list);
+    exit;
+}
+
+
+#####################################################
 #interactive loop.  shows list, allows user to act upon it
 sub mainLoop {
     my $filter = shift(@_);
-    
     my $quit = 0;
-    my $action = "";    
+    my $action = "list";    
     my $putList = 1;
     my %list;
     my $lastSync = "";
 
+
     while ($quit == 0){
     # check the action
 	unless ($action eq ""){
-	    print "checking for action $action\n" if $verbose;
+#	    print "checking for action $action\n" if $verbose;
 	    #remove a task
 	    if (($action eq "rm") || ($action eq "r") || ($action eq "delete")){
-		interactiveAlter("delete",%list);
+		%list = interactiveAlter("delete",$filter,$lastSync,%list);
 		$action = "";		
 	    }
             #complete a task
 	    elsif (($action eq "c") || ($action eq "complete")){		
-		interactiveAlter("complete",%list);
+		%list = interactiveAlter("complete",$filter,$lastSync,%list);
 		$action = "";		
 	    }
             #uncomplete a task
 	    elsif (($action eq "uncomplete") || ($action eq "u")){
-		interactiveAlter("uncomplete",%list);
+		%list = interactiveAlter("uncomplete",$filter,$lastSync,%list);
 		$action = "";		
 	    }
             #postpone a task
 	    elsif (($action eq "postpone") || ($action eq "p")){
-		interactiveAlter("postpone",%list);
+		%list = interactiveAlter("postpone",$filter,$lastSync,%list);
 		$action = "";		
 	    }
 	    #add a task
 	    elsif (($action eq "add") || ($action eq "a")){
 		interactiveAdd();
+		%list = updateTaskListPostAdd($filter,$lastSync,%list);
+		$lastSync = DateTime->now;
 		$action = ""; 
 	    }
 
-	    #quit
+	    #refresh the entire list
 	    elsif (($action eq "list") || ($action eq "l")){
+		%list = getTaskList($filter,"");
+#		showList(%list);
+		$lastSync = DateTime->now;
 		$action = "0"
 	    }
 
@@ -255,73 +392,48 @@ sub mainLoop {
 		$quit = 1;
 		exit;
 	    }
-
-
+	    
+	    
 	    #invalid input
 	    else{
 		print "invalid action\n";
 	    }
 	}	
-
-        # do I need to fetch a new list?
-	if ($action eq ""){ 
-	    if (defined($filter)){
-		%list = getTaskList("filter=status:incomplete","");
-	    }
-	    else{
-		%list = getTaskList("","");
-	    }
-	    showList(%list);
-##
-#	    my $key ="";
-#	    foreach $key (sort{$a<=>$b} keys %list) {
-#		print $key . ",";
-#	    }
-#	    print "\n";
-#	    print Dumper($list{21}) ."\n";
-#	    exit;
-##
-	}	
-
-
-#	$lastSync = DateTime->now;
-#	%list = getTaskList("filter=status:incomplete","last_sync=$lastSync");
-#	showList(%list);
-
-
-
 	
-	# prompt for a new action
+	showList(%list);
 	$action = prompt();		       
     }#end while
 }#end mainLoop
+#####################################################
 
-
-
+#-----------------------------------------------------
 sub prompt(){
+    print "-----------------------------------------------------------------\n";
+    print " (a)dd  (r)emove  (c)omplete  (p)ostpone  (q)uit\n\n";
     print ": ";
     my $input = <STDIN>;    
     chomp($input);
     return $input
 }
 
-
+#-----------------------------------------------------
 #prompts for task number to alter.
 sub interactiveAlter(){
-    my ($action,%list) = @_;
+    my ($action,$filter,$lastSync,%list) = @_;
     print "task to $action: ";
     my $taskNum = <STDIN>;
     chomp($taskNum);
-#    print "alterTask: tasks_$action, " . expandList($taskNum) . "$action" . "d\n" if $verbose;
     alterTask("tasks_$action", expandList($taskNum), $action . "d", %list);
+    return updateTaskListPostAlter($taskNum,$action,$filter,$lastSync,%list);
 }
 
+#-----------------------------------------------------
 sub interactiveAdd{
     print "task to add: ";
     my $taskName = <STDIN>;
     chomp($taskName);
-#    print "adding: $taskName \n" if $verbose;
-    addTask($taskName)
+    print "adding: $taskName \n" if $verbose;
+    addTask($taskName)	
 }
 
 
@@ -377,7 +489,7 @@ sub interactiveAdd{
 
 
 
-
+#-----------------------------------------------------
 # Adds a task to given list
 # takes 1 argument: name of task to add
 sub addTask{
@@ -389,7 +501,7 @@ sub addTask{
 }
 
 
-
+#-----------------------------------------------------
 #alters the task in the specified manner
 #
 sub alterTask{
@@ -429,12 +541,30 @@ sub setDueDate{
 }
 
 
+#-----------------------------------------------------
+# I think this will provide cross-platform clearing of the screen.
+# haven't tested it on windows yet
+sub clearScreen{
+    if ($^O =~ /MSWin32/) {
+	#windows
+	system("cls");
+    }
+    else {
+	#*nix
+	system("clear");
+    }
+}
+
+
+#-----------------------------------------------------
 # retrieves and displays the task list
 # TODO: renumber events in date order
 # TODO: add filter as option
 sub showList{
-    print "\n\n";
+    clearScreen();
     my (%list) = @_;
+
+#    print Dumper(%list) ."\n";
 
 	
 #    # if we have an input filter
@@ -464,7 +594,10 @@ sub showList{
 # #    print Dumper(\%tasks)."\n";
 
     my $prevDate = 0;
-    foreach my $i (sort {$list{$a}->{dueDate} cmp $list{$b}->{dueDate}} keys %list) {
+
+    my @asdf = keys(%list);
+
+    foreach my $i (sort{$a <=> $b} keys %list) {
 	
 	my $dueDate = $list{$i}->{dueDate};
 	#convert blank dueDates
@@ -488,7 +621,7 @@ sub showList{
 }
 
 
-
+#-----------------------------------------------------
 # pads (or truncates) a string to a set number of characters
 # for nice display
 sub padName {
@@ -538,8 +671,7 @@ sub padName {
 ##############################################################
 #begin main
 
-
-#is this an authorize call?
+#if parameters are passed
 if (@ARGV){
     my $action = shift(@ARGV);
 
@@ -572,69 +704,19 @@ if (@ARGV){
 	mainLoop($filter);
     }
 
-    # some other params, ignore and enter interactive mode
+    # some other params that aren't recognized 
+    # ignore them and enter interactive mode
     else{
-	mainLoop("filter=status:uncompleted");
+	mainLoop("filter=status:incomplete");
     }	
 }
 #no arguments given, interactive mode
 else{
     $ua->init;
-    mainLoop("filter=status:completed");
+    mainLoop("filter=status:incomplete");
     exit;
 }
 
 
-
-# =back
-
-# =head1 CONFIGURATION
-
-# B<rtm> can be configured to use a proxy server. Simply
-# define environment variables 'https_proxy' and 'http_proxy'.
-# As this is pretty standard, your system might already be
-# configured accordingly.
-
-# =head1 EXAMPLES
-
-# =over 4
-
-# =item rtm --show
-
-# =item rtm --delete 2,5,6-9 --complete 3,12-15
-
-# List uncompleted tasks; in that list, delete tasks 2, 5, and
-# 6 to 9, and complete tasks 3, and 12 to 15.
-
-# =item rtm --show --filter status:completed
-
-# List all completed tasks
-
-# =item rtm --filter status:completed --uncomplete 5-10
-
-# Mark previously completed tasks 5 to 10 as uncomplete.
-
-# =item rtm --show list
-
-# =item rtm --list 3 --add "Do great things"
-
-# Prints all available lists; add a task to list 3.
-
-# =head1 NOTES
-
-# "Release early, release often!"
-
-# This is work in progress. 
-
-# Bug reports and feature requests are accepted. Patches are
-# even better.
-
-# =head1 SEE ALSO
-
-# B<WebService::RTMAgent.pm>, which implements the B<rtm> API.
-
-# =head1 AUTHOR
-
-# Chris Miller <chrisamiller@gmail.com>
 
 
