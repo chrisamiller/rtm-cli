@@ -19,21 +19,21 @@ This not a to-do list manager that tries to be complex or fancy. If you use mult
 ------------
 
  -------------------------------------------------------------------------------
-|                                                                              |
-|   ----------------------                                                     |
-|   0:	file report with boss                             	Jul 13         |
-|   1:	finish script                                     	Jul 13         |
-|   2:	laundry                                           	Jul 13         |
-|   ----------------------                                                     |
-|   3:	get milk                                          	Jul 14         |
-|   ----------------------                                                     |
-|   4:	make dentist appt                                 	___            |
-|   5:	plan vacation                                     	___            |
-|   ---------------------------------------------------------------------      |
-|   (a)dd  (r)emove  (c)omplete  (p)ostpone  (d)ate  (h)elp  (q)uit            |
-|                                                                              |
-|   :                                                                          |
-|                                                                              |
+|                                                                              
+|   ----------------------                                                     
+|   0:	file report with boss                             	Jul 13         
+|   1:	finish script                                     	Jul 13         
+|   2:	laundry                                           	Jul 13         
+|   ----------------------                                                     
+|   3:	get milk                                          	Jul 14         
+|   ----------------------                                                     
+|   4:	make dentist appt                                 	___            
+|   5:	plan vacation                                     	___            
+|   ---------------------------------------------------------------------      
+|   (a)dd  (r)emove  (c)omplete  (p)ostpone  (d)ate  (h)elp  (q)uit            
+|                                                                              
+|   :                                                                          
+|                                                                              
 |______________________________________________________________________________
 
 
