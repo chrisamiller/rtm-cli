@@ -1,3 +1,91 @@
-A A command-line Remember the Milk client,in perl; forked from http://www.rutschle.net/rtm/
+rtm-cli is a command-line Remember the Milk client, written in perl.
 
-Still no changes, more details to come...
+This is not a to-do list manager that tries to be complex or fancy. If you use multiple lists, tags, geolocation, times or other crazy features, this is not the client for you. If you want a clean, dead simple task list that you can run right from your shell, then read on.
+
+
+Setup:
+-----------
+
+Makes use of the WebService::RTMAgent from cpan.  It can be installed on most Linux systems by running:
+
+   cpan install WebService::RTMAgent
+
+
+Make the rtm.pl file executable, and make sure it's in your PATH,  Also consider adding an rtm alias with something like the following:
+
+   > ln -s rtm.pl /usr/bin/rtm
+
+
+The first time you use the program, you'll need to authorize to access your RTM account. To do this, run
+
+   > rtm.pl authorize
+
+then copy the URL into your web browser and log in.
+
+
+
+Usage:
+-----------
+
+Running the script with no arguments starts interactive mode.
+
+interactive rtm-cli purposely supports only a few options:
+
+- add (a) a new task. 
+
+- complete (c) a new task. 
+
+- change the due date (d) of a task
+
+- postpone (p) a task to make the due date one day later
+
+- remove (r) a task
+
+- reload the list (l) from the server (l)
+
+- help (h) lists the available options
+
+- quit (q) the program
+
+
+
+rtm-cli also accepts command line arguments, which allows you to do a few things more quickly:
+
+Add a task:
+
+  > rtm add taskname
+
+Or even shorter:
+
+  > rtm a task
+
+
+List today's tasks:
+
+  > rtm today
+
+
+Print usage:
+
+  > rtm help
+
+
+
+Notes:
+----------------
+
+- rtm-cli relies on RTM's server side parsing to do intelligent things with dates, so that "buy milk tomorrow" gets the appropriate date added.
+
+- future versions may include some or all of the following features
+   - interactive shortcut syntax "a 3" to add 
+   - number ranges "r 3-5" to remove tasks 3 through 5 (also csv "r 4,6,7")
+   - support for undo
+ 
+- contributions and feedback are welcomed.  <chrisamiller@gmail.com>
+
+- rtm-cli was originally forked from http://www.rutschle.net/rtm/  The code no longer bears much resemblance to the original.
+
+- rtm-cli is released under the GPL2 license (see source for details).
+
+
+

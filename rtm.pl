@@ -22,17 +22,6 @@
 
 
 
-# Todo:
-# 
-# add shortcut syntax "r 3"
-# add support for number ranges "1,2,3" and "1-3"
-# uncomplete
-# undo
-# today's tasks "rtm today"
-# filters
-
-
-
 #libs, etc
 use WebService::RTMAgent;
 use Pod::Usage;
@@ -613,32 +602,6 @@ sub undo{
 }
 
 
-
-
-
-
-
-# #-----------------------------------------------------
-# # testing - to be deleted
-# sub mainLoopTest{
-#     my $filter = shift(@_);
-#     my %list = getTaskList($filter,"");
-#     showList(%list);
-# #    print Dumper(%list) ."\n" if $verbose;    
-#     my $lastSync = DateTime->now;
-#     #addTask("zzzzdddd");
-#     alterTask("tasks_delete", "5", "deletedd", %list);
-
-#     %list = updateTaskListPostAlter("5","delete",$filter,$lastSync,%list);
-
-# #    my %newTasks = getTaskList($filter,"last_sync=$lastSync");
-# #    print Dumper(%newTasks) ."\n";
-#     showList(%list);
-#     exit;
-# }
-
-
-
 #####################################################
 #interactive loop.  shows list, allows user to act upon it
 sub mainLoop {
@@ -836,6 +799,7 @@ if (@ARGV){
 # 	}
 	    
 #     }
+
 
     # some other params that aren't recognized 
     # ignore them and enter interactive mode
