@@ -1,3 +1,14 @@
+             .                                       oooo   o8o  
+           .o8                                       `888   `"'  
+oooo d8b .o888oo ooo. .oo.  .oo.            .ooooo.   888  oooo  
+`888""8P   888   `888P"Y88bP"Y88b          d88' `"Y8  888  `888  
+ 888       888    888   888   888  8888888 888        888   888  
+ 888       888 .  888   888   888          888   .o8  888   888  
+d888b      "888" o888o o888o o888o         `Y8bod8P' o888o o888o 
+
+=================================================================
+
+
 rtm-cli is a command-line Remember the Milk client, written in perl.
 
 This is not a to-do list manager that tries to be complex or fancy. If you use multiple lists, tags, geolocation, times or other crazy features, this is not the client for you. If you want a clean, dead simple task list that you can run right from your shell, then read on.
