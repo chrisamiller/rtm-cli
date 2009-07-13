@@ -9,7 +9,7 @@ d888b      "888" o888o o888o o888o         `Y8bod8P' o888o o888o
 =================================================================
 
 
-rtm-cli is a command-line todo list that uses Remember the Milk as a backend. It can be used from the shell, or in a simple text-based interactive mode.
+rtm-cli is a command-line todo list in perl that uses Remember the Milk as a backend. It can be used from the shell, or in a simple text-based interactive mode.
 
 This not a to-do list manager that tries to be complex or fancy. If you use multiple lists, tags, geolocation, times or other crazy features, this is not the client for you. If you want a clean, text-based, dead simple task list that you can sync to the web, then read on. 
 
@@ -75,7 +75,7 @@ interactive rtm-cli purposely supports only a few options:
 
 - remove (r) a task
 
-- reload the list (l) from the server (l)
+- reload the list (l) from the server
 
 - help (h) lists the available options
 
@@ -117,7 +117,7 @@ Notes:
 - rtm-cli relies on RTM's server side parsing to do intelligent things with dates, so that "buy milk tomorrow" adds the task "buy milk" with a date of tomorrow.
 
 - future versions will include some or all of the following features
-   - interactive shortcut syntax "a 3" to add 
+   - shortcut syntax (i.e. "c 3" to complete item 3)
    - number ranges "r 3-5" to remove tasks 3 through 5 (also csv: "r 4,6,7")
    - support for undo
  
