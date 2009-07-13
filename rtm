@@ -777,9 +777,15 @@ if (@ARGV){
 	exit;
     }
 
-    # quick add a task
-    elsif ($action eq "today"){
+    # quick list of today's tasks
+    elsif (($action eq "today") || ($action eq "t")){
 	my %list = getTaskList("filter=due:today","");
+	showList(%list);
+	exit;	
+    }
+    
+    elsif (($action eq "list") || ($action eq "l")){
+	my %list = getTaskList("filter=status:incomplete","");
 	showList(%list);
 	exit;	
     }
